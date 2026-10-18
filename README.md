@@ -150,17 +150,3 @@ Count transactions per payment type:
 ```bash
 q -H -d ';' 'select payment, count(*) from homebank_import.csv group by payment'
 ```
-
-## Troubleshooting
-
-**`Encoding utf-9-sig could not be found`**
-This typo comes from `q`'s own error message. The correct encoding name is
-`utf-8-sig`. The script doesn't need it, since it strips the BOM itself.
-
-**`UnicodeEncodeError: 'ascii' codec can't encode …`**
-`q` needs a UTF-8 locale. The script switches to `C.UTF-8` automatically when
-your locale isn't UTF-8.
-
-**`query error: incomplete input`** (when running your own `q` queries)
-`q` puts the query on a single line, so a `--` SQL comment disables
-everything after it. Remove the comments.
