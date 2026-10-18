@@ -1,7 +1,11 @@
-# bank2homebank
+# bnpfortis2homebank
 
 Convert a **BNP Paribas Fortis** CSV export into the CSV import format of
 [HomeBank](https://www.gethomebank.org/), the free personal finance manager.
+
+> This project is not affiliated with, endorsed by or sponsored by
+> BNP Paribas Fortis or the HomeBank project. Product names are used only to
+> describe the file formats this tool converts.
 
 The bank export (Dutch-language) is converted to HomeBank's 8-column format:
 
@@ -38,9 +42,9 @@ other platforms.
 ## Installation
 
 ```bash
-git clone https://github.com/<your-user>/bank2homebank.git
-cd bank2homebank
-install -m 755 bank2homebank ~/.local/bin/
+git clone https://github.com/<your-user>/bnpfortis2homebank.git
+cd bnpfortis2homebank
+install -m 755 bnpfortis2homebank ~/.local/bin/
 ```
 
 Make sure `~/.local/bin` is in your `PATH`.
@@ -48,7 +52,7 @@ Make sure `~/.local/bin` is in your `PATH`.
 ## Usage
 
 ```
-bank2homebank [OPTIONS] INPUT.csv
+bnpfortis2homebank [OPTIONS] INPUT.csv
 ```
 
 | Option | Description |
@@ -65,13 +69,13 @@ bank2homebank [OPTIONS] INPUT.csv
 
 ```bash
 # Print the converted transactions
-bank2homebank CSV_2026-10-18-07.52.csv
+bnpfortis2homebank CSV_2026-10-18-07.52.csv
 
 # Write them to a file
-bank2homebank -o homebank_import.csv CSV_2026-10-18-07.52.csv
+bnpfortis2homebank -o homebank_import.csv CSV_2026-10-18-07.52.csv
 
 # Use value dates and overwrite an existing output file
-bank2homebank -v -f -o homebank_import.csv CSV_2026-10-18-07.52.csv
+bnpfortis2homebank -v -f -o homebank_import.csv CSV_2026-10-18-07.52.csv
 ```
 
 ### Exit codes

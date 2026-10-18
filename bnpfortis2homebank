@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# bank2homebank - convert a BNP Paribas Fortis CSV export to HomeBank CSV format
+# bnpfortis2homebank - convert a BNP Paribas Fortis CSV export to HomeBank CSV format
 #
 set -euo pipefail
 
