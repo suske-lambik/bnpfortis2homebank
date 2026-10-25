@@ -36,9 +36,9 @@ PAYMENT_MAP = {
     "Kosten in verband met de rekening": PAY_FI_FEE,
     "Domiciliëring": PAY_DIRECT_DEBIT,
     "Hypotheekleningen Terugbetalingen": PAY_DIRECT_DEBIT,
-    "Diverse Debetverrichtingen": PAY_NONE,
-    "Geldopname met kaart": PAY_NONE,
-    "Geldopname in buitenland": PAY_NONE,
+    "Diverse Debetverrichtingen": PAY_DEBIT_CARD,
+    "Geldopname met kaart": PAY_CASH,
+    "Geldopname in buitenland": PAY_CASH,
 }
 
 OUT_HEADER = ["date", "payment", "number", "payee", "memo", "amount", "category", "tags"]
