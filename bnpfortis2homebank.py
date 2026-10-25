@@ -6,9 +6,10 @@ import argparse
 import csv
 import os
 import sys
+import xml.etree.ElementTree as ET
 
 PROG = os.path.basename(sys.argv[0])
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 PAYMENT_MAP = {
     "Kredietkaartbetaling": 1,
@@ -19,6 +20,9 @@ PAYMENT_MAP = {
     "Kosten in verband met de rekening": 10,
     "Domiciliëring": 11,
     "Hypotheekleningen Terugbetalingen": 11,
+    "Diverse Debetverrichtingen": 0,
+    "Geldopname met kaart": 0,
+    "Geldopname in buitenland": 0,
 }
 
 OUT_HEADER = ["date", "payment", "number", "payee", "memo", "amount", "category", "tags"]
@@ -26,7 +30,11 @@ OUT_HEADER = ["date", "payment", "number", "payee", "memo", "amount", "category"
 DESCRIPTION = """\
 Convert a BNP Paribas Fortis CSV export (';'-separated, BOM and spaces in
 header names are handled) into HomeBank's CSV import format:
-  date;payment;number;payee;memo;amount;category;tags"""
+  date;payment;number;payee;memo;amount;category;tags
+
+With --xhb, transactions whose sequence number (Volgnummer) is already present
+in the given HomeBank file are skipped, so overlapping exports can be
+converted safely. The HomeBank file is only read, never modified."""
 
 EPILOG = f"""\
 Dates are written as yyyy-mm-dd: choose "y-m-d" in HomeBank's import dialog.
@@ -35,12 +43,17 @@ reported on standard error.
 
 Examples:
   {PROG} CSV_2026-10-18-07.52.csv > import.csv
-  {PROG} -o import.csv CSV_2026-10-18-07.52.csv"""
+  {PROG} -o import.csv CSV_2026-10-18-07.52.csv
+  {PROG} -x finances.xhb -a "Zichtrekening" -o import.csv CSV_2026-10-18-07.52.csv"""
 
 
 def die(msg, code=1):
     print(f"{PROG}: {msg}", file=sys.stderr)
     sys.exit(code)
+
+
+def warn(msg):
+    print(f"{PROG}: {msg}", file=sys.stderr)
 
 
 def parse_args():
@@ -61,9 +74,20 @@ def parse_args():
                    help="also include refused transactions")
     p.add_argument("-n", "--no-header", action="store_true",
                    help="do not write the header line")
+    p.add_argument("-x", "--xhb", metavar="FILE.xhb",
+                   help="skip transactions whose Volgnummer already exists "
+                        "in this HomeBank file")
+    p.add_argument("-a", "--account", metavar="NAME",
+                   help="with --xhb: only compare against transactions of "
+                        "the HomeBank account named NAME")
+    p.add_argument("-q", "--quiet", action="store_true",
+                   help="with --xhb: do not list each skipped duplicate")
     p.add_argument("-V", "--version", action="version",
                    version=f"{PROG} {VERSION}")
-    return p.parse_args()
+    args = p.parse_args()
+    if args.account and not args.xhb:
+        p.error("--account requires --xhb")
+    return args
 
 
 def read_rows(path):
@@ -83,6 +107,38 @@ def read_rows(path):
             fields += [""] * (len(keys) - len(fields))
             rows.append(dict(zip(keys, fields)))
     return keys, rows
+
+
+def read_xhb_numbers(path, account_name=None):
+    """Return the set of 'info' values (HomeBank's number field) of the
+    transactions in a HomeBank .xhb file, optionally limited to one account."""
+    try:
+        root = ET.parse(path).getroot()
+    except ET.ParseError as e:
+        die(f"cannot parse HomeBank file {path}: {e}")
+    except OSError as e:
+        die(f"cannot read HomeBank file {path}: {e.strerror}")
+
+    if root.tag != "homebank":
+        die(f"not a HomeBank file: {path}")
+
+    account_key = None
+    if account_name is not None:
+        accounts = {a.get("name"): a.get("key") for a in root.iter("account")}
+        if account_name not in accounts:
+            names = ", ".join(sorted(n for n in accounts if n)) or "(none)"
+            die(f"account not found in {path}: {account_name}\n"
+                f"  available accounts: {names}")
+        account_key = accounts[account_name]
+
+    numbers = set()
+    for ope in root.iter("ope"):
+        if account_key is not None and ope.get("account") != account_key:
+            continue
+        info = (ope.get("info") or "").strip()
+        if info:
+            numbers.add(info)
+    return numbers
 
 
 def to_iso_date(d):
@@ -114,6 +170,8 @@ def main():
         die(f"file not found: {args.input}")
     if not os.access(args.input, os.R_OK):
         die(f"file not readable: {args.input}")
+    if args.xhb and not os.path.isfile(args.xhb):
+        die(f"file not found: {args.xhb}")
     if args.output and os.path.exists(args.output) and not args.force:
         die(f"output file exists: {args.output} (use --force to overwrite)")
 
@@ -132,6 +190,8 @@ def main():
     if missing:
         die("missing column(s) in input: " + ", ".join(missing))
 
+    existing = read_xhb_numbers(args.xhb, args.account) if args.xhb else None
+
     # Warn about transaction types not covered by the mapping
     unknown = []
     for r in rows:
@@ -139,8 +199,7 @@ def main():
         if t not in PAYMENT_MAP and t not in unknown:
             unknown.append(t)
     if unknown:
-        print(f"{PROG}: warning: unmapped transaction types (payment set to 0):",
-              file=sys.stderr)
+        warn("warning: unmapped transaction types (payment set to 0):")
         for t in unknown:
             print(f"  {t}", file=sys.stderr)
 
@@ -148,14 +207,31 @@ def main():
     if not args.no_header:
         lines.append(";".join(OUT_HEADER))
     count = 0
+    duplicates = []      # (row, reason)
+    no_number = 0
+    seen_in_input = set()
+
     for r in rows:
         if not args.include_refused and r["Reden_van_weigering"].strip():
             continue
+
+        number = r["Volgnummer"].strip()
+        if existing is not None:
+            if not number:
+                no_number += 1
+            elif number in existing:
+                duplicates.append((r, "already in HomeBank"))
+                continue
+            elif number in seen_in_input:
+                duplicates.append((r, "repeated in input"))
+                continue
+            seen_in_input.add(number)
+
         memo = r["Mededeling"] or r["Details"]
         lines.append(";".join([
             to_iso_date(r[date_col]),
             str(PAYMENT_MAP.get(r["Type_verrichting"], 0)),
-            r["Volgnummer"],
+            number,
             clean(r["Naam_van_de_tegenpartij"]),
             clean(memo),
             to_amount(r["Bedrag"]),
@@ -164,14 +240,29 @@ def main():
         ]))
         count += 1
 
+    if existing is not None:
+        if duplicates:
+            warn(f"skipped {len(duplicates)} duplicate transaction(s)")
+            if not args.quiet:
+                for r, reason in duplicates:
+                    print(f"  {r['Volgnummer']}  {to_iso_date(r[date_col])}  "
+                          f"{to_amount(r['Bedrag']):>10}  "
+                          f"{r['Naam_van_de_tegenpartij']}  ({reason})",
+                          file=sys.stderr)
+        if no_number:
+            warn(f"warning: {no_number} transaction(s) without Volgnummer "
+                 "could not be checked for duplicates and were included")
+
     text = "\n".join(lines) + ("\n" if lines else "")
     if args.output:
         with open(args.output, "w", encoding="utf-8", newline="") as f:
             f.write(text)
-        print(f"{PROG}: wrote {count} transactions to {args.output}", file=sys.stderr)
+        warn(f"wrote {count} transactions to {args.output}")
     else:
         sys.stdout.reconfigure(encoding="utf-8")
         sys.stdout.write(text)
+        if existing is not None:
+            warn(f"wrote {count} transactions")
 
 
 if __name__ == "__main__":
