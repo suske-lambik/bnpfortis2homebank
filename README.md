@@ -19,35 +19,35 @@ date;payment;number;payee;memo;amount;category;tags
   in column names and Windows line endings are handled automatically.
 - Maps the bank's transaction types to HomeBank payment types.
 - Converts dates to ISO format (`yyyy-mm-dd`).
+- Accepts amounts with either a `.` or a `,` decimal separator.
 - Skips refused transactions by default.
 - Uses the message (`Mededeling`) as memo, falling back to `Details` when empty
   (useful for card payments).
 - Warns about transaction types it doesn't know yet.
+- Reports missing columns by name instead of failing obscurely.
 
 ## Requirements
 
-- `bash`, `sed`
-- [`q`](https://harelba.github.io/q/) – run SQL directly on CSV files
+- Python 3.7 or later. Only the standard library is used; there is nothing
+  else to install.
 
-Install `q` on Debian/Ubuntu from its GitHub release:
-
-```bash
-wget https://github.com/harelba/q/releases/download/v3.1.6/q-text-as-data-3.1.6-1.x86_64.deb
-sudo dpkg -i q-text-as-data-3.1.6-1.x86_64.deb
-```
-
-See the [q installation page](https://harelba.github.io/q/#installation) for
-other platforms.
+Runs on Linux, macOS and Windows.
 
 ## Installation
 
 ```bash
 git clone https://github.com/<your-user>/bnpfortis2homebank.git
 cd bnpfortis2homebank
-install -m 755 bnpfortis2homebank ~/.local/bin/
+install -m 755 bnpfortis2homebank.py ~/.local/bin/bnpfortis2homebank
 ```
 
 Make sure `~/.local/bin` is in your `PATH`.
+
+On Windows, or without installing, run it through Python:
+
+```bash
+python3 bnpfortis2homebank.py [OPTIONS] INPUT.csv
+```
 
 ## Usage
 
@@ -83,8 +83,8 @@ bnpfortis2homebank -v -f -o homebank_import.csv CSV_2026-10-18-07.52.csv
 | Code | Meaning |
 |---|---|
 | 0 | Success |
-| 1 | Error (missing file, `q` not installed, output exists, …) |
-| 2 | No input file given |
+| 1 | Error (missing or unreadable file, missing columns, output exists, …) |
+| 2 | Usage error (no input file, unknown option, …) |
 
 ## Importing into HomeBank
 
@@ -127,13 +127,15 @@ importer would otherwise split the line.
 | Hypotheekleningen Terugbetalingen | 11 – direct debit |
 | *anything else* | 0 – none (reported as a warning) |
 
-To add or change a mapping, edit the `case Type_verrichting` block in the
-script.
+To add or change a mapping, edit the `PAYMENT_MAP` dictionary at the top of
+the script.
 
 ## Assumptions
 
-- The input is `;`-separated with dates in `dd/mm/yyyy` format and amounts
-  with a `.` decimal separator, as in the standard BNP Paribas Fortis export.
+- The input is UTF-8, `;`-separated, with dates in `dd/mm/yyyy` format, as in
+  the standard BNP Paribas Fortis export.
+- Amounts use either a `.` decimal separator (`-1234.50`) or the Belgian
+  notation (`-1.234,50`). An empty or unreadable amount becomes `0.00`.
 - Refused transactions are recognised by a non-empty `Reden van weigering`
   (reason for refusal) column.
 
@@ -148,5 +150,5 @@ column -s ';' -t homebank_import.csv | less -S
 Count transactions per payment type:
 
 ```bash
-q -H -d ';' 'select payment, count(*) from homebank_import.csv group by payment'
+tail -n +2 homebank_import.csv | cut -d ';' -f 2 | sort -n | uniq -c
 ```
