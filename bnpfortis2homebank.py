@@ -9,20 +9,36 @@ import sys
 import xml.etree.ElementTree as ET
 
 PROG = os.path.basename(sys.argv[0])
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 
+# HomeBank payment types, as used in the 'payment' column of its CSV import.
+PAY_NONE = 0                    # none
+PAY_CREDIT_CARD = 1             # credit card
+PAY_CHECK = 2                   # check
+PAY_CASH = 3                    # cash
+PAY_BANK_TRANSFER = 4           # bank transfer
+PAY_INTERNAL_TRANSFER = 5       # internal transfer
+PAY_DEBIT_CARD = 6              # debit card
+PAY_STANDING_ORDER = 7          # standing order
+PAY_ELECTRONIC_PAYMENT = 8      # electronic payment
+PAY_DEPOSIT = 9                 # deposit
+PAY_FI_FEE = 10                 # financial institution fee
+PAY_DIRECT_DEBIT = 11           # direct debit
+
+# Bank transaction type ('Type verrichting') -> HomeBank payment type.
+# Types not listed here get PAY_NONE and are reported as a warning.
 PAYMENT_MAP = {
-    "Kredietkaartbetaling": 1,
-    "Overschrijving in euro": 4,
-    "Instantoverschrijving in euro": 4,
-    "Kaartbetaling": 6,
-    "Doorlopende betalingsopdracht": 7,
-    "Kosten in verband met de rekening": 10,
-    "Domiciliëring": 11,
-    "Hypotheekleningen Terugbetalingen": 11,
-    "Diverse Debetverrichtingen": 0,
-    "Geldopname met kaart": 0,
-    "Geldopname in buitenland": 0,
+    "Kredietkaartbetaling": PAY_CREDIT_CARD,
+    "Overschrijving in euro": PAY_BANK_TRANSFER,
+    "Instantoverschrijving in euro": PAY_BANK_TRANSFER,
+    "Kaartbetaling": PAY_DEBIT_CARD,
+    "Doorlopende betalingsopdracht": PAY_STANDING_ORDER,
+    "Kosten in verband met de rekening": PAY_FI_FEE,
+    "Domiciliëring": PAY_DIRECT_DEBIT,
+    "Hypotheekleningen Terugbetalingen": PAY_DIRECT_DEBIT,
+    "Diverse Debetverrichtingen": PAY_NONE,
+    "Geldopname met kaart": PAY_NONE,
+    "Geldopname in buitenland": PAY_NONE,
 }
 
 OUT_HEADER = ["date", "payment", "number", "payee", "memo", "amount", "category", "tags"]
@@ -230,7 +246,7 @@ def main():
         memo = r["Mededeling"] or r["Details"]
         lines.append(";".join([
             to_iso_date(r[date_col]),
-            str(PAYMENT_MAP.get(r["Type_verrichting"], 0)),
+            str(PAYMENT_MAP.get(r["Type_verrichting"], PAY_NONE)),
             number,
             clean(r["Naam_van_de_tegenpartij"]),
             clean(memo),
