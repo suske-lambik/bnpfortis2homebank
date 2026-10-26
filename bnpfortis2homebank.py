@@ -40,6 +40,11 @@ PAYMENT_MAP = {
     "Diverse Debetverrichtingen": PAY_DEBIT_CARD,
     "Geldopname met kaart": PAY_CASH,
     "Geldopname in buitenland": PAY_CASH,
+    "Geldstorting via kaart": PAY_DEPOSIT,
+    "Kosten diverse verrichtingen": PAY_FI_FEE,
+    "Terugbetalingen": PAY_BANK_TRANSFER,
+    "Correctie kaartverrichting": PAY_DIRECT_DEBIT,
+    "Tegenboeking verrichting": PAY_BANK_TRANSFER,
 }
 
 OUT_HEADER = ["date", "payment", "number", "payee", "memo", "amount", "category", "tags"]
