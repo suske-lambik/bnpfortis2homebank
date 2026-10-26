@@ -185,22 +185,25 @@ def clean(s):
     return (s or "").replace(";", ",")
 
 
-PAYEE_RE_1 = re.compile(r"BETALING MET BANKKAART MET KAART\s+(?:[\dX]{4}\s){4}[\dX]\s+(.+?)\s+\d{2}/\d{2}/\d{4}")
-PAYEE_RE_2 = re.compile(r"^(?:[\dX]{4}\s){4}[\dX]\s+(.+?)$")
+PAYEE_RE = [
+    re.compile(r"BETALING MET BANKKAART MET KAART\s+(?:[\dX]{4}\s){4}[\dX]\s+(.+?)\s+\d{2}/\d{2}/\d{4}"),
+    re.compile(r"BETALING MET DEBET KAART NUMMER\s+(?:[\dX]{4}\s){4}[\dX]\s+(.+?)\s+\d{2}/\d{2}/\d{4}"),
+    re.compile(r"^(?:[\dX]{4}\s){4}[\dX]\s+(.+?)$"),
+]
 
 
 def get_payee_from_memo(memo):
     """ Tries to get payee information from the memo field 
         supported:
-            PAYEE_RE_1: BETALING MET BANKKAART MET KAART 1234 56XX XXXX X789 4 5213 DREAMBABY L LIER 01/02/2018 BANKREFERENTIE : 12345647890123465 VALUTADATUM : 01/02/2018
-            PAYEE_RE_2: 1234 56XX XXXX X789 1 APOTHEEK BRUSSEL
-            """  
-    m = PAYEE_RE_1.search(memo)
-    payee = m.group(1) if m else None
-
-    if payee is None:
-        m = PAYEE_RE_2.search(memo)
+            BETALING MET BANKKAART MET KAART 1234 56XX XXXX X789 4 5213 DREAMBABY L LIER 01/02/2018 BANKREFERENTIE : 12345647890123465 VALUTADATUM : 01/02/2018
+            BETALING MET DEBET KAART NUMMER 1234 56XX XXXX X789 5 BRICO 3400 MECHE MECHELEN 01/02/2019 BANKREFERENTIE : 1912161842280368 VALUTADATUM : 01/02/2019
+            1234 56XX XXXX X789 1 APOTHEEK BRUSSEL
+            """
+    for payee_re in PAYEE_RE:
+        m = payee_re.search(memo)
         payee = m.group(1) if m else None
+        if payee is not None:
+            return payee
     return payee
 
 
