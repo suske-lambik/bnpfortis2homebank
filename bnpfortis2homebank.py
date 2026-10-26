@@ -45,6 +45,11 @@ PAYMENT_MAP = {
     "Terugbetalingen": PAY_BANK_TRANSFER,
     "Correctie kaartverrichting": PAY_DIRECT_DEBIT,
     "Tegenboeking verrichting": PAY_BANK_TRANSFER,
+    "Interesten op zichtrekening": PAY_FI_FEE,
+    "Diverse creditverrichtingen": PAY_BANK_TRANSFER,
+    "Grensoverschrijdende overschrijving": PAY_BANK_TRANSFER,
+    "Effecten Diverse Operaties": PAY_BANK_TRANSFER,
+    "Kosten": PAY_FI_FEE,
 }
 
 OUT_HEADER = ["date", "payment", "number", "payee", "memo", "amount", "category", "tags"]
