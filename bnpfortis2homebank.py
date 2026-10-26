@@ -199,12 +199,13 @@ PAYEE_RE = [
 ]
 
 
-def get_payee_from_memo(memo):
+def get_payee_from_details(memo):
     """ Tries to get payee information from the memo field 
         supported:
             BETALING MET BANKKAART MET KAART 1234 56XX XXXX X789 4 5213 DREAMBABY L LIER 01/02/2018 BANKREFERENTIE : 12345647890123465 VALUTADATUM : 01/02/2018
             BETALING MET DEBET KAART NUMMER 1234 56XX XXXX X789 5 BRICO  01/02/2019 BANKREFERENTIE : 12345647890123465 VALUTADATUM : 01/02/2019
             BETALING MET DEBETKAART NUMMER 1234 56XX XXXX X789 HAPPY GOGO CHARLEROI 01/02/2022 VISA DEBIT BANKREFERENTIE : 12345647890123465 VALUTADATUM : 01/02/2022
+            BETALING MET DEBETKAART NUMMER 1234 56XX XXXX X789 BANCONTACT PAYCONIQ CO 2110 WIJNEGEM 01/02/2025 12:23 BANCONTACT BANKREFERENTIE : 12345647890123465 VALUTADATUM : 01/02/2025
             TERUGBETALING MET DEBETKAART 1234 56XX XXXX X789 DE SPULLENVERKOPER 01/02/2025 OM 17 U 06 BANCONTACT BANKREFERENTIE : 12345647890123465 VALUTADATUM : 01/02/2025
             1234 56XX XXXX X789 1 APOTHEEK BRUSSEL
             """
@@ -283,7 +284,7 @@ def main():
         memo = r["Mededeling"] or r["Details"]
         payee = r["Naam_van_de_tegenpartij"]
         if payee is None or payee.strip() == '':
-            payee = get_payee_from_memo(memo)
+            payee = get_payee_from_details(r["Details"])
 
         lines.append(";".join([
             to_iso_date(r[date_col]),
