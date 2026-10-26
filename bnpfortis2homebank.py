@@ -5,6 +5,7 @@ bnpfortis2homebank - convert a BNP Paribas Fortis CSV export to HomeBank CSV for
 import argparse
 import csv
 import os
+import re
 import sys
 import xml.etree.ElementTree as ET
 
@@ -179,6 +180,25 @@ def clean(s):
     return (s or "").replace(";", ",")
 
 
+PAYEE_RE_1 = re.compile(r"BETALING MET BANKKAART MET KAART\s+(?:[\dX]{4}\s){4}[\dX]\s+(.+?)\s+\d{2}/\d{2}/\d{4}")
+PAYEE_RE_2 = re.compile(r"^(?:[\dX]{4}\s){4}[\dX]\s+(.+?)$")
+
+
+def get_payee_from_memo(memo):
+    """ Tries to get payee information from the memo field 
+        supported:
+            PAYEE_RE_1: BETALING MET BANKKAART MET KAART 1234 56XX XXXX X789 4 5213 DREAMBABY L LIER 01/02/2018 BANKREFERENTIE : 12345647890123465 VALUTADATUM : 01/02/2018
+            PAYEE_RE_2: 1234 56XX XXXX X789 1 APOTHEEK BRUSSEL
+            """  
+    m = PAYEE_RE_1.search(memo)
+    payee = m.group(1) if m else None
+
+    if payee is None:
+        m = PAYEE_RE_2.search(memo)
+        payee = m.group(1) if m else None
+    return payee
+
+
 def main():
     args = parse_args()
 
@@ -244,11 +264,15 @@ def main():
             seen_in_input.add(number)
 
         memo = r["Mededeling"] or r["Details"]
+        payee = r["Naam_van_de_tegenpartij"]
+        if payee is None or payee.strip() == '':
+            payee = get_payee_from_memo(memo)
+
         lines.append(";".join([
             to_iso_date(r[date_col]),
             str(PAYMENT_MAP.get(r["Type_verrichting"], PAY_NONE)),
             number,
-            clean(r["Naam_van_de_tegenpartij"]),
+            clean(payee),
             clean(memo),
             to_amount(r["Bedrag"]),
             "",
