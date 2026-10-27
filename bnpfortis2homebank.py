@@ -57,6 +57,7 @@ PAYMENT_MAP = {
     "Dividend in contanten": PAY_BANK_TRANSFER,
     "Effecten Correcties": PAY_BANK_TRANSFER,
     "Effecten Vereffening": PAY_BANK_TRANSFER,
+    "Tegenboeking betaalde domiciliëring": PAY_BANK_TRANSFER,
 }
 
 OUT_HEADER = ["date", "payment", "number", "payee", "memo", "amount", "category", "tags"]
