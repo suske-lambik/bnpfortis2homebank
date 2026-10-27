@@ -10,7 +10,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 PROG = os.path.basename(sys.argv[0])
-VERSION = "1.1.1"
+VERSION = "1.2.0"
 
 # HomeBank payment types, as used in the 'payment' column of its CSV import.
 PAY_NONE = 0                    # none
@@ -68,7 +68,10 @@ header names are handled) into HomeBank's CSV import format:
 
 With --xhb, transactions whose sequence number (Volgnummer) is already present
 in the given HomeBank file are skipped, so overlapping exports can be
-converted safely. The HomeBank file is only read, never modified."""
+converted safely. The HomeBank file is only read, never modified.
+
+With --account-map, the HomeBank account is looked up from the export's
+account number (Rekeningnummer), so it doesn't have to be given per file."""
 
 EPILOG = f"""\
 Dates are written as yyyy-mm-dd: choose "y-m-d" in HomeBank's import dialog.
@@ -78,7 +81,12 @@ reported on standard error.
 Examples:
   {PROG} CSV_2026-10-18-07.52.csv > import.csv
   {PROG} -o import.csv CSV_2026-10-18-07.52.csv
-  {PROG} -x finances.xhb -a "Zichtrekening" -o import.csv CSV_2026-10-18-07.52.csv"""
+  {PROG} -x finances.xhb -a "Zichtrekening" -o import.csv CSV_2026-10-18-07.52.csv
+  {PROG} -x finances.xhb -m accounts.map -o import.csv CSV_2026-10-18-07.52.csv
+ 
+Account map file: one 'IBAN = HomeBank account name' per line. Spaces in the
+IBAN and letter case don't matter; blank lines and lines starting with '#'
+are ignored."""
 
 
 def die(msg, code=1):
@@ -114,6 +122,10 @@ def parse_args():
     p.add_argument("-a", "--account", metavar="NAME",
                    help="with --xhb: only compare against transactions of "
                         "the HomeBank account named NAME")
+    p.add_argument("-m", "--account-map", metavar="FILE",
+                   help="with --xhb: find the HomeBank account by looking up "
+                        "the export's Rekeningnummer in FILE "
+                        "(--account takes precedence)")
     p.add_argument("-q", "--quiet", action="store_true",
                    help="with --xhb: do not list each skipped duplicate")
     p.add_argument("-V", "--version", action="version",
@@ -122,6 +134,49 @@ def parse_args():
     if args.account and not args.xhb:
         p.error("--account requires --xhb")
     return args
+
+
+def normalize_iban(s):
+    return "".join(s.split()).upper()
+ 
+ 
+def read_account_map(path):
+    """Read 'IBAN = account name' lines into a dict keyed by normalized IBAN."""
+    mapping = {}
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            for lineno, line in enumerate(f, 1):
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                iban, sep, name = line.partition("=")
+                iban, name = normalize_iban(iban), name.strip()
+                if not sep or not iban or not name:
+                    die(f"{path}:{lineno}: expected 'IBAN = account name'")
+                if iban in mapping and mapping[iban] != name:
+                    die(f"{path}:{lineno}: {iban} is mapped twice "
+                        f"('{mapping[iban]}' and '{name}')")
+                mapping[iban] = name
+    except OSError as e:
+        die(f"cannot read account map {path}: {e.strerror}")
+    except UnicodeDecodeError:
+        die(f"account map is not valid UTF-8: {path}")
+    return mapping
+ 
+ 
+def account_from_map(rows, path):
+    """Return the HomeBank account for the single IBAN found in the export."""
+    ibans = sorted({normalize_iban(r["Rekeningnummer"]) for r in rows} - {""})
+    if not ibans:
+        die("no account number (Rekeningnummer) found in input")
+    if len(ibans) > 1:
+        die("input contains more than one account number: " + ", ".join(ibans)
+            + "\n  export each account separately, or use --account")
+    mapping = read_account_map(path)
+    if ibans[0] not in mapping:
+        die(f"account number {ibans[0]} not found in {path}\n"
+            f"  add a line: {ibans[0]} = <HomeBank account name>")
+    return ibans[0], mapping[ibans[0]]
 
 
 def read_rows(path):
@@ -251,7 +306,14 @@ def main():
     if missing:
         die("missing column(s) in input: " + ", ".join(missing))
 
-    existing = read_xhb_numbers(args.xhb, args.account) if args.xhb else None
+    account = args.account
+    if args.account_map and not account:
+        if "Rekeningnummer" not in keys:
+            die("missing column in input: Rekeningnummer (needed for --account-map)")
+        iban, account = account_from_map(rows, args.account_map)
+        warn(f"account: {account} ({iban})")
+
+    existing = read_xhb_numbers(args.xhb, account) if args.xhb else None
 
     # Warn about transaction types not covered by the mapping
     unknown = []

@@ -66,6 +66,7 @@ bnpfortis2homebank [OPTIONS] INPUT.csv
 | `-n`, `--no-header` | Do not write the header line |
 | `-x`, `--xhb FILE.xhb` | Skip transactions whose `Volgnummer` already exists in this HomeBank file (see [Avoiding duplicates](#avoiding-duplicates)) |
 | `-a`, `--account NAME` | With `--xhb`: only compare against transactions of the HomeBank account named `NAME` |
+| `-m`, `--account-map FILE` | With `--xhb`: find the HomeBank account by looking up the export's account number in `FILE` (see [Account map](#account-map)). `--account` takes precedence |
 | `-q`, `--quiet` | With `--xhb`: report only the number of skipped duplicates, not each one |
 | `-h`, `--help` | Show help and exit |
 | `-V`, `--version` | Show version and exit |
@@ -84,6 +85,10 @@ bnpfortis2homebank -v -f -o homebank_import.csv CSV_2026-10-18-07.52.csv
 
 # Only keep transactions not yet in the "Zichtrekening" account
 bnpfortis2homebank -x ~/finances.xhb -a "Zichtrekening" \
+    -o homebank_import.csv CSV_2026-10-18-07.52.csv
+
+# Same, but let the account number in the export pick the account
+bnpfortis2homebank -x ~/finances.xhb -m ~/finances/accounts.map \
     -o homebank_import.csv CSV_2026-10-18-07.52.csv
 ```
 
@@ -146,6 +151,30 @@ Good to know:
 
 Without `--xhb`, the whole input file is converted, as before.
 
+### Account map
+
+If you have several accounts, you'd normally have to pass the right
+`--account` for every export. Instead, `--account-map` reads the account
+number (`Rekeningnummer`) from the export and looks it up in a small text
+file:
+
+```
+# accounts.map: IBAN = HomeBank account name
+BE68 5390 0754 7034 = Zichtrekening
+BE71 0961 2345 6769 = Spaarrekening
+```
+
+- One mapping per line. Spaces in the IBAN and letter case don't matter;
+  blank lines and lines starting with `#` are ignored.
+- The account name must match the name in HomeBank exactly.
+- The chosen account is reported on standard error
+  (`account: Zichtrekening (BE68539007547034)`), so you know which account to
+  pick in HomeBank's import dialog.
+- The conversion stops with an error if the export's IBAN isn't in the map
+  (the message shows the line to add), if the export contains more than one
+  account number, or if the map has the same IBAN twice with different names.
+- An explicit `--account` overrides the map.
+
 ## Column mapping
 
 | HomeBank | Bank export |
@@ -177,7 +206,24 @@ importer would otherwise split the line.
 | *anything else* | 0 – none (reported as a warning) |
 
 To add or change a mapping, edit the `PAYMENT_MAP` dictionary at the top of
-the script.
+the script. All HomeBank payment types are defined just above it as named
+constants, so a new entry reads like
+`"Geldopname met kaart": PAY_CASH,`:
+
+| Constant | Value | HomeBank payment |
+|---|---|---|
+| `PAY_NONE` | 0 | none |
+| `PAY_CREDIT_CARD` | 1 | credit card |
+| `PAY_CHECK` | 2 | check |
+| `PAY_CASH` | 3 | cash |
+| `PAY_BANK_TRANSFER` | 4 | bank transfer |
+| `PAY_INTERNAL_TRANSFER` | 5 | internal transfer |
+| `PAY_DEBIT_CARD` | 6 | debit card |
+| `PAY_STANDING_ORDER` | 7 | standing order |
+| `PAY_ELECTRONIC_PAYMENT` | 8 | electronic payment |
+| `PAY_DEPOSIT` | 9 | deposit |
+| `PAY_FI_FEE` | 10 | financial institution fee |
+| `PAY_DIRECT_DEBIT` | 11 | direct debit |
 
 ## Assumptions
 
@@ -187,6 +233,8 @@ the script.
   notation (`-1.234,50`). An empty or unreadable amount becomes `0.00`.
 - Refused transactions are recognised by a non-empty `Reden van weigering`
   (reason for refusal) column.
+- With `--account-map`, each export covers a single account, recognised by
+  the `Rekeningnummer` column.
 - With `--xhb`, HomeBank stores the `number` column as the `info` attribute of
   each transaction (`<ope … info="…">`) in the `.xhb` file; that's what the
   duplicate check reads.
