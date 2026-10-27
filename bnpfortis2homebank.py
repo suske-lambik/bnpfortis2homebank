@@ -51,6 +51,12 @@ PAYMENT_MAP = {
     "Effecten Diverse Operaties": PAY_BANK_TRANSFER,
     "Kosten": PAY_FI_FEE,
     "Interesten op spaarrekening": PAY_BANK_TRANSFER,
+    "Effecten Bewaarloon": PAY_FI_FEE,
+    "Effecten Creditverrichtingen": PAY_BANK_TRANSFER,
+    "Effecten Verkoop": PAY_BANK_TRANSFER,
+    "Dividend in contanten": PAY_BANK_TRANSFER,
+    "Effecten Correcties": PAY_BANK_TRANSFER,
+    "Effecten Vereffening": PAY_BANK_TRANSFER,
 }
 
 OUT_HEADER = ["date", "payment", "number", "payee", "memo", "amount", "category", "tags"]
